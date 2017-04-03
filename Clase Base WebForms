@@ -1,0 +1,596 @@
+using IBCA.Entities;
+using IBCA.Model;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Diagnostics;
+using System.Drawing.Printing;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Mail;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+
+namespace IBCA.Class
+{
+    public class Base : Page
+    {
+        #region System.Web.UI.page.OnInit
+
+        protected override void OnInit(EventArgs e)
+        {
+            String pageName = Path.GetFileNameWithoutExtension(Page.AppRelativeVirtualPath);
+
+            if (pageName != "Login")
+            {
+                if (Session["Usuario"] == null)
+                    MuestraMensaje("Su sesión ha finalizado", "Login.aspx");
+            }
+
+            base.OnInit(e);
+        }
+
+        public void ValidarSesion()
+        {
+            if (Session["Usuario"] == null)
+            {
+                //MuestraMensaje("Su sesión ha finalizado", "Login.aspx");
+                Response.Redirect("Login.aspx", false);
+            }
+        }
+
+        public void ValidarAccesoOpcionByUrl(String UrlOpcion)
+        {
+            if (Session["Opciones"] != null)
+            {
+                List<Opcion> listaOpciones = (List<Opcion>)Session["Opciones"];
+
+                if (!listaOpciones.Any(x => x.Url.ToUpper() == UrlOpcion.ToUpper()))
+                {
+                    Response.Redirect("Default.aspx?DAC=AccessDenied", false);
+                }
+            }
+            else
+            {
+                Response.Redirect("Login.aspx", false);
+            }
+        }
+
+        #endregion
+
+        public Generales general;
+
+        public Base()
+        {
+            general = new Generales();
+        }
+
+        public string RutaArchivos
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["RutaArchivos"];
+            }
+        }
+
+        public string RutaImagen
+        {
+            get
+            {
+                return "../Images/logo.png";
+            }
+        }
+
+        //==========================Variables de Acceso al Correo========================   
+        public string DominioCorreoEmpresa
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["DominioCorreoEmpresa"];
+            }
+        }
+
+        public string ClaveCorreo
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["ClaveCorreo"];
+            }
+        }
+
+        public string RemitenteCorreo
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["RemitenteCorreo"];
+            }
+        }
+
+        public string NombreRemitenteCorreo
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["NombreRemitenteCorreo"];
+            }
+        }
+
+        public string NombreHost
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["NombreHost"];
+            }
+        }
+
+        public int PuertoCorreo
+        {
+            get
+            {
+                return Int32.Parse(ConfigurationManager.AppSettings["PuertoCorreo"]);
+            }
+        }
+
+        public string Extensiones
+        {
+            get
+            {
+                return ConfigurationManager.AppSettings["Extensiones"];
+            }
+        }
+
+        public string DAC
+        {
+            get
+            {
+                if (ViewState["DAC"] == null)
+                {
+                    if (this.Request.QueryString["DAC"] != null)
+                    {
+                        ViewState["DAC"] = this.Request.QueryString["DAC"];
+                    }
+
+                }
+                return ViewState["DAC"] == null ? "" : ViewState["DAC"].ToString();
+            }
+        }
+
+        public string IdSolicitud
+        {
+            get
+            {
+                if (ViewState["IdSol"] == null)
+                {
+                    if (this.Request.QueryString["IdSol"] != null)
+                    {
+                        ViewState["IdSol"] = this.Request.QueryString["IdSol"];
+                    }
+
+                }
+                return ViewState["IdSol"] == null ? "" : ViewState["IdSol"].ToString();
+            }
+        }
+
+        public string IdMenu
+        {
+            get
+            {
+                if (ViewState["IdMenu"] == null)
+                {
+                    if (this.Request.QueryString["IdMenu"] != null)
+                    {
+                        ViewState["IdMenu"] = this.Request.QueryString["IdMenu"];
+                    }
+
+                }
+                return ViewState["IdMenu"] == null ? "" : ViewState["IdMenu"].ToString();
+
+            }
+        }
+
+
+        public static bool SimularSeguridad
+        {
+            get
+            {
+                try
+                {
+                    return Convert.ToBoolean(int.Parse(ConfigurationManager.AppSettings["SimularSeguridad"]));
+                }
+                catch (Exception exc)
+                {
+                    return false;
+                }
+            }
+        }
+
+        public static bool SimularDatos
+        {
+            get
+            {
+                try
+                {
+                    return Convert.ToBoolean(int.Parse(ConfigurationManager.AppSettings["SimularDatos"]));
+                }
+                catch (Exception exc)
+                {
+                    return false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Crea un Identificador único
+        /// </summary>
+        /// <returns>Identificador único de 32 caracteres</returns>
+        public string CreateUniqueId()
+        {
+            Guid g = System.Guid.NewGuid();
+
+            return g.ToString("N");
+        }
+
+        /// <summary>
+        /// Obtiene un Identificador único por cada página cargada. Sirve como Id de Instancia de Página
+        /// </summary>
+        public string Guid
+        {
+            get
+            {
+                if (ViewState["Guid"] == null)
+                {
+
+                    ViewState["Guid"] = CreateUniqueId();
+                }
+
+                return ViewState["Guid"] == null ? "" : ViewState["Guid"].ToString();
+
+            }
+
+        }
+
+        /// <summary>
+        /// Obtiene una variable de Sessión que es unica para la página actual.  Si desea algo global utilizar Session["abc"].
+        /// </summary>
+        /// <param name="key">clave de la variable de sesión</param>
+        /// <returns>Variable de Sesión consultada</returns>
+        public object GetFromUniqueSession(string key)
+        {
+            return Session[Guid + key];
+        }
+
+        /// <summary>
+        /// Guarda una variable de Sessión de forma unica para la página actual. Si desea algo global utilizar Session["abc"] = value.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        public void SaveToUniqueSession(string key, object value)
+        {
+            Session[Guid + key] = value;
+        }
+
+        public void MuestraMensaje(string msg)
+        {
+            MuestraMensaje(msg, null);
+        }
+
+        public void MuestraMensaje(string msg, string redirect)
+        {
+            bool msgMostrado = false;
+
+            if (this.Master != null && this.Master is IBCA_MasterPage)
+            {
+                ((IBCA_MasterPage)this.Master).MuestraMensaje(msg, redirect);
+                msgMostrado = true;
+            }
+
+            if (!msgMostrado)
+            {
+                Response.Write("<script type='text/javascript'> alert('" + msg + "'); </script>");
+            }
+        }
+
+        public class Meses
+        {
+            public int IdMes { get; set; }
+            public string Nombre { get; set; }
+        }
+
+        public List<Meses> getMeses
+        {
+            get
+            {
+                List<Meses> lista = new List<Meses>();
+
+                lista.Add(new Meses() { IdMes = 1, Nombre = "Enero" });
+                lista.Add(new Meses() { IdMes = 3, Nombre = "Febrero" });
+                lista.Add(new Meses() { IdMes = 3, Nombre = "Marzo" });
+                lista.Add(new Meses() { IdMes = 4, Nombre = "Abril" });
+                lista.Add(new Meses() { IdMes = 5, Nombre = "Mayo" });
+                lista.Add(new Meses() { IdMes = 6, Nombre = "Junio" });
+                lista.Add(new Meses() { IdMes = 7, Nombre = "Julio" });
+                lista.Add(new Meses() { IdMes = 8, Nombre = "Agosto" });
+                lista.Add(new Meses() { IdMes = 9, Nombre = "Septiembre" });
+                lista.Add(new Meses() { IdMes = 10, Nombre = "Octubre" });
+                lista.Add(new Meses() { IdMes = 11, Nombre = "Noviembre" });
+                lista.Add(new Meses() { IdMes = 12, Nombre = "Diciembre" });
+
+                return lista;
+            }
+        }
+
+        public DateTime getPrimerDiaMes(int _mes, int _anio)
+        {
+            return new DateTime(_anio, _mes, 1);
+        }
+
+        public DateTime getUltimoDiaMes(int _mes, int _anio)
+        {
+            return new DateTime(_anio, _mes, 1).AddMonths(1).AddDays(-1);
+        }
+
+        public class Anios
+        {
+            public int IdAnio { get; set; }
+            public string Nombre { get; set; }
+        }
+
+        public List<Anios> getAnios
+        {
+            get
+            {
+                List<Anios> lista = new List<Anios>();
+
+                for (int i = 2013; i <= DateTime.Today.Year; i++)
+                {
+                    lista.Add(new Anios() { IdAnio = i, Nombre = i.ToString() });
+                }
+
+                return lista;
+            }
+        }
+
+        public class ListaEstandar
+        {
+            public String _Id { get; set; }
+            public String _Value { get; set; }
+        }
+
+        public class ListaOrdenamiento
+        {
+            public String _Sort { get; set; }
+            public Boolean _Order { get; set; }
+        }
+
+        public static int numeroSemanasEnAnio(int anio)
+        {
+            DateTimeFormatInfo dfi = DateTimeFormatInfo.CurrentInfo;
+            DateTime date1 = new DateTime(anio, 12, 31);
+            System.Globalization.Calendar cal = dfi.Calendar;
+
+            return cal.GetWeekOfYear(date1, dfi.CalendarWeekRule, dfi.FirstDayOfWeek);
+        }
+
+        public static DateTime primerDiaDeSemana(int year, int weekOfYear, System.Globalization.CultureInfo ci)
+        {
+            DateTime jan1 = new DateTime(year, 1, 1);
+            int daysOffset = (int)ci.DateTimeFormat.FirstDayOfWeek - (int)jan1.DayOfWeek;
+            DateTime firstWeekDay = jan1.AddDays(daysOffset);
+            int firstWeek = ci.Calendar.GetWeekOfYear(jan1, ci.DateTimeFormat.CalendarWeekRule, ci.DateTimeFormat.FirstDayOfWeek);
+            if (firstWeek <= 1 || firstWeek > 50)
+            {
+                weekOfYear -= 1;
+            }
+            return firstWeekDay.AddDays(weekOfYear * 7);
+        }
+
+        public string RetornaPlantilla(string NombreDestinatario, string Mensaje, string Motivo, string rutaPlantilla)
+        {
+            string body = string.Empty;
+            string ruta = "<img src='" + RutaImagen + "' />";
+
+            using (StreamReader reader = new StreamReader(Server.MapPath(rutaPlantilla)))
+            {
+                body = reader.ReadToEnd();
+            }
+
+            body = body.Replace("{Nombre}", NombreDestinatario);
+            body = body.Replace("{RutaImagen}", ruta);
+            body = body.Replace("{Mensaje}", Mensaje);
+            body = body.Replace("{Link}", "un link aqui");
+            body = body.Replace("{Motivo}", Motivo);
+            return body;
+
+        }
+
+        public bool EnviarMail1(string cuerpoMensaje, string nombreDestinatario, string correoDestinatario,
+                                string correoAsunto, List<string> documentoAdjunto)
+        {
+            SmtpClient client = new SmtpClient();
+            MailMessage message = new MailMessage();
+            int cont;
+            string varNombreAdjunto;
+
+            string correoRemitente = RemitenteCorreo + DominioCorreoEmpresa + ".com.ec";
+
+            try
+            {
+                client.Timeout = 5 * 60000;
+                client.DeliveryMethod = SmtpDeliveryMethod.Network;
+                client.Host = NombreHost;
+                client.Port = PuertoCorreo;
+
+                NetworkCredential myCreds = new NetworkCredential(correoRemitente, ClaveCorreo, DominioCorreoEmpresa);
+                client.Credentials = myCreds;
+
+                MailAddress fromAddress = new MailAddress(correoRemitente, NombreRemitenteCorreo, System.Text.Encoding.UTF8);
+                MailAddress toAddress = new MailAddress(correoDestinatario, nombreDestinatario, System.Text.Encoding.UTF8);
+
+                message.From = fromAddress;
+                message.To.Add(toAddress);
+                message.Subject = correoAsunto;
+                message.Body = cuerpoMensaje;
+                message.IsBodyHtml = true;
+                message.Priority = MailPriority.Normal;
+
+                byte[] data = new byte[1024];
+                MemoryStream stream = new MemoryStream(data);
+
+                if (documentoAdjunto.Count() > 0)
+                {
+                    for (cont = 0; cont < documentoAdjunto.Count(); cont++)
+                    {
+                        varNombreAdjunto = Path.GetFileName(documentoAdjunto[cont]);
+                        message.Attachments.Add(new Attachment(documentoAdjunto[cont]));
+                    }
+                }
+                client.Send(message);
+                return true;
+            }
+            catch (FormatException ex)
+            {
+                Response.Write(ex.ToString());
+                return false;
+            }
+
+        }
+
+        public bool EnviarMail2(string cuerpoMensaje, List<Destinatario> Destinatario,
+            List<Destinatario> correoCC, string correoAsunto, List<string> documentoAdjunto, string rutaFormato)
+        {
+            try
+            {
+                Email objEMail = new Email();
+
+                objEMail.CuerpoMensaje = cuerpoMensaje;
+                objEMail.Asunto = correoAsunto;
+                objEMail.Destinatario = Destinatario;
+                objEMail.CC = correoCC;
+                objEMail.RutaFormato = rutaFormato;
+                objEMail.DocumentoAdjunto = documentoAdjunto;
+
+                MailUtil.GuardaMail(objEMail, HttpContext.Current);
+
+                return true;
+            }
+            catch (FormatException ex)
+            {
+                if (!SimularDatos)
+                {
+                    Response.Write(ex.ToString());
+                }
+                return false;
+            }
+
+        }
+
+        public int LogInicio(String _detalles, String _formulario)
+        {
+            int RefId;
+
+            try
+            {
+                LogConsultaTransaccion logInicial = new LogConsultaTransaccion();
+                logInicial.Usuario = Session["Usuario"].ToString();
+                logInicial.Fecha = DateTime.Now;
+                logInicial.Detalles = _detalles;
+                logInicial.Formulario = _formulario;
+                logInicial.RefId = null;
+
+                LogConsultaTransaccionEntity saveLogInicial = new LogConsultaTransaccionEntity();
+                RefId = saveLogInicial.save(logInicial).Id;
+            }
+            catch (Exception)
+            {
+                RefId = 0;
+            }
+
+            return RefId;
+        }
+
+        public int LogFin(String _detalles, String _formulario, int _refId)
+        {
+            int RefId;
+
+            try
+            {
+
+                LogConsultaTransaccion log = new LogConsultaTransaccion();
+                log.Usuario = Session["Usuario"].ToString();
+                log.Fecha = DateTime.Now;
+                log.Detalles = _detalles;
+                log.Formulario = _formulario;
+                log.RefId = _refId;
+
+                LogConsultaTransaccionEntity saveLog = new LogConsultaTransaccionEntity();
+                RefId = saveLog.save(log).Id;
+            }
+            catch (Exception)
+            {
+                RefId = 0;
+            }
+
+            return RefId;
+        }
+
+        public void ImprimirDocumento(String _pdfPathAndFileName, String _printer)
+        {
+            try
+            {
+                ImpresoraTermicaIbca.ImpresoraComun impresora = new ImpresoraTermicaIbca.ImpresoraComun();
+
+                ImpresoraTermicaIbca.PrinterAndDocument printer = new ImpresoraTermicaIbca.PrinterAndDocument();
+                printer.Impresora = _printer;
+                printer.NombreDocumento = "Impresion desde PIBCA";
+                printer.TipoDocumento = "TEXT";
+
+                impresora.ImprimirArchivoPdf(printer, _pdfPathAndFileName);
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
+        public void ShowingGroupingDataInGridView(GridViewRowCollection gridViewRows, int startIndex, int totalColumns)
+        {
+            if (totalColumns == 0) return;
+            int i, count = 1;
+            ArrayList lst = new ArrayList();
+            lst.Add(gridViewRows[0]);
+            var ctrl = gridViewRows[0].Cells[startIndex];
+            for (i = 1; i < gridViewRows.Count; i++)
+            {
+                TableCell nextTbCell = gridViewRows[i].Cells[startIndex];
+                if (ctrl.Text == nextTbCell.Text)
+                {
+                    count++;
+                    nextTbCell.Visible = false;
+                    lst.Add(gridViewRows[i]);
+                }
+                else
+                {
+                    if (count > 1)
+                    {
+                        ctrl.RowSpan = count;
+                        ShowingGroupingDataInGridView(new GridViewRowCollection(lst), startIndex + 1, totalColumns - 1);
+                    }
+                    count = 1;
+                    lst.Clear();
+                    ctrl = gridViewRows[i].Cells[startIndex];
+                    lst.Add(gridViewRows[i]);
+                }
+            }
+            if (count > 1)
+            {
+                ctrl.RowSpan = count;
+                ShowingGroupingDataInGridView(new GridViewRowCollection(lst), startIndex + 1, totalColumns - 1);
+            }
+            count = 1;
+            lst.Clear();
+        }
+    }
+}
