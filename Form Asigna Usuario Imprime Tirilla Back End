@@ -1,0 +1,693 @@
+using IBCA.Class;
+using IBCA.Model;
+using IBCA.Entities;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using IBCA.IBCA_BI_DataSet1TableAdapters;
+using System.Configuration;
+using System.Data.SqlClient;
+using System.Data;
+using Microsoft.Reporting.WebForms;
+using System.IO;
+using ImpresoraTermicaIbca.Epson;
+using IBCA.BusinessIntelligence;
+
+namespace IBCA.Forms
+{
+    public partial class BodegaDespachoParaReservaB : Base
+    {
+        private String OrdenVenta
+        {
+            get
+            {
+                return (String)this.GetFromUniqueSession("OrdenVenta");
+            }
+            set
+            {
+                this.SaveToUniqueSession("OrdenVenta", value);
+            }
+        }
+
+        private String UsuarioAsignado
+        {
+            get
+            {
+                return (String)this.GetFromUniqueSession("UsuarioAsignado");
+            }
+            set
+            {
+                this.SaveToUniqueSession("UsuarioAsignado", value);
+            }
+        }
+
+        private String Facturador
+        {
+            get
+            {
+                return (String)this.GetFromUniqueSession("Facturador");
+            }
+            set
+            {
+                this.SaveToUniqueSession("Facturador", value);
+            }
+        }
+
+        private List<Model.ParametrosDetalle> Impresoras
+        {
+            get
+            {
+                return (List<Model.ParametrosDetalle>)this.GetFromUniqueSession("Impresoras");
+            }
+            set
+            {
+                this.SaveToUniqueSession("Impresoras", value);
+            }
+        }
+
+        private IBCA_BI_DataSet1 PersonalBodega
+        {
+            get
+            {
+                return (IBCA_BI_DataSet1)this.GetFromUniqueSession("PersonalBodega");
+            }
+            set
+            {
+                this.SaveToUniqueSession("PersonalBodega", value);
+            }
+        }
+
+        private IBCA_BI_DataSet1 GetDataImprimir(String _ov, String _tipo, Boolean _individual, Boolean _tirilla)
+        {
+            IBCA_BI_DataSet1 dsCustomers = new IBCA_BI_DataSet1();
+
+            try
+            {
+                BodegaGetOvCabeceraTableAdapter ibcaAdapterA = new BodegaGetOvCabeceraTableAdapter();
+                ibcaAdapterA.SelectCommandTimeout = 0;
+                ibcaAdapterA.Fill(dsCustomers.BodegaGetOvCabeceraDataTable, _ov);
+
+                if (_individual)
+                {
+                    BodegaGetOvDetalleIndividualTableAdapter ibcaAdapterC = new BodegaGetOvDetalleIndividualTableAdapter();
+                    ibcaAdapterC.SelectCommandTimeout = 0;
+                    ibcaAdapterC.Fill(dsCustomers.BodegaGetOvDetalleIndividualDataTable, _ov, _tipo);
+                }
+
+                if (_tirilla)
+                {
+                    BodegaGetOvDetalleTirillaTableAdapter ibcaAdapterD = new BodegaGetOvDetalleTirillaTableAdapter();
+                    ibcaAdapterD.SelectCommandTimeout = 0;
+                    ibcaAdapterD.Fill(dsCustomers.BodegaGetOvDetalleTirillaDataTable, _ov, _tipo);
+                }
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                throw ex;
+            }
+
+            return dsCustomers;
+        }
+
+        private void GetDatosPersonalPernos()
+        {
+            IBCA_BI_DataSet1 dsCustomers = new IBCA_BI_DataSet1();
+
+            try
+            {
+                BodegaPersonalPernosTableAdapter ibcaAdapterA = new BodegaPersonalPernosTableAdapter();
+                ibcaAdapterA.SelectCommandTimeout = 0;
+                ibcaAdapterA.Fill(dsCustomers.BodegaPersonalPernosDataTable);
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                throw ex;
+            }
+
+            PersonalBodega = dsCustomers;
+        }
+
+        private void RecargarGrid()
+        {
+            lblMensajeErrorCliente.Visible = false;
+
+            DateTime pFecha;
+
+            if (txtFechaInicio.Text == "")
+            {
+                pFecha = DateTime.Today.AddDays(-1);
+                txtFechaInicio.Text = pFecha.ToString("dd/MM/yyyy");
+            }
+            else
+            {
+                pFecha = DateTime.ParseExact(txtFechaInicio.Text, "dd/MM/yyyy", null);
+            }
+
+            BodegaBI bi = new BodegaBI();
+            List<fn_ibca_reporteweb_bodega_ordenventa_parareserva_Result> dsResult = new List<fn_ibca_reporteweb_bodega_ordenventa_parareserva_Result>();
+            dsResult = bi.fn_ibca_reporteweb_bodega_ordenventa_parareservaEDM(pFecha, null).OrderBy(x => x.confirmacion).ToList();
+
+
+            dgParaReserva.DataSourceID = null;
+            dgParaReserva.DataSource = dsResult;
+            dgParaReserva.DataBind();
+        }
+
+        private void ImprimirAsignacion(String _ov, String _usuarioAsignado, String _facturador)
+        {
+            PrinterAndDocument confInmpresora = new PrinterAndDocument();
+            ImpresoraTermicaEpson a = new ImpresoraTermicaIbca.Epson.ImpresoraTermicaEpson();
+            String CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraC, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF, CadenaPie;
+
+            confInmpresora.Impresora = ddlImpresoras.SelectedItem.Text;
+            confInmpresora.NombreDocumento = "Impresión de Bodega - PIBCA";
+            confInmpresora.TipoDocumento = "RAW";
+
+            DataSet resultado = GetDataImprimir(_ov, "FILTER_PERNOS", true, true);
+
+            try
+            {
+                if (resultado.Tables["BodegaGetOvDetalleTirillaDataTable"].Rows.Count > 0)
+                {
+                    DataRow ro = resultado.Tables["BodegaGetOvDetalleTirillaDataTable"].AsEnumerable().First();
+
+                    CadenaCabeceraA = "Orden " + resultado.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[0].ToString();
+                    CadenaCabeceraB = "Cliente " + resultado.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[1].ToString();
+                    CadenaCabeceraC = "Facturador " + _facturador;
+
+                    CadenaCabeceraD = "";
+                    CadenaCabeceraE = "Fecha Cliente " + ro[5].ToString();
+                    CadenaCabeceraF = "";
+
+                    CadenaPie = "Asignado a " + _usuarioAsignado + " - " + resultado.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[2].ToString() + " ";
+
+                    a.ImprimirFormatoBodegaOvLineas(confInmpresora, new List<String> { CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF }, resultado.Tables["BodegaGetOvDetalleIndividualDataTable"], CadenaPie, false, false);
+                    a.ImprimirFormatoBodegaOv(confInmpresora, new List<String> { CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraC, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF }, resultado.Tables["BodegaGetOvDetalleTirillaDataTable"], CadenaPie, false, false, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                throw ex;
+            }
+        }
+
+        private void ImprimirTirillaPernos(String _ov, String _usuarioAsignado, String _facturador)
+        {
+            /*TEMPORAL*/
+            //_ov = "00579394_047";
+            //_usuarioAsignado = "Jesús Miranda Sistemas";
+            /*TEMPORAL*/
+
+            PrinterAndDocument confInmpresora = new PrinterAndDocument();
+            ImpresoraTermicaEpson a = new ImpresoraTermicaIbca.Epson.ImpresoraTermicaEpson();
+            String CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraC, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF, CadenaPie;
+
+            confInmpresora.Impresora = ddlImpresoras.SelectedItem.Text;
+            confInmpresora.NombreDocumento = "Impresión de Bodega - PIBCA";
+            confInmpresora.TipoDocumento = "RAW";
+
+            DataSet resultado = GetDataImprimir(_ov, "FILTER_PERNOS", false, true);
+
+            try
+            {
+                if (resultado.Tables["BodegaGetOvDetalleTirillaDataTable"].Rows.Count > 0)
+                {
+                    DataRow ro = resultado.Tables["BodegaGetOvDetalleTirillaDataTable"].AsEnumerable().First();
+
+                    CadenaCabeceraA = "Orden " + resultado.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[0].ToString();
+                    CadenaCabeceraB = "Cliente " + resultado.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[1].ToString();
+                    CadenaCabeceraC = "Facturador " + _facturador;
+
+                    CadenaCabeceraD = "";
+                    CadenaCabeceraE = "Fecha Cliente " + ro[5].ToString();
+                    CadenaCabeceraF = "";
+
+                    CadenaPie = "Asignado a " + _usuarioAsignado + " - " + resultado.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[2].ToString() + " ";
+
+                    //a.ImprimirFormatoBodegaOvLineas(confInmpresora, new List<String> { CadenaCabeceraA, CadenaCabeceraB }, resultado.Tables["BodegaGetOvDetalleIndividualDataTable"], CadenaPie, false, false);
+                    a.ImprimirFormatoBodegaOv(confInmpresora, new List<String> { CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraC, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF }, resultado.Tables["BodegaGetOvDetalleTirillaDataTable"], CadenaPie, false, false, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                throw ex;
+            }
+        }
+
+        private void ImprimirTirillaOtros(String _ov, String _usuarioAsignado, String _facturador)
+        {
+            /*TEMPORAL*/
+            //_ov = "00579394_047";
+            //_usuarioAsignado = "Jesús Miranda Sistemas";
+            /*TEMPORAL*/
+
+            PrinterAndDocument confInmpresora = new PrinterAndDocument();
+            ImpresoraTermicaEpson a = new ImpresoraTermicaIbca.Epson.ImpresoraTermicaEpson();
+            String CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraC, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF, CadenaPie;
+
+            confInmpresora.Impresora = ddlImpresoras.SelectedItem.Text;
+            confInmpresora.NombreDocumento = "Impresión de Bodega - PIBCA";
+            confInmpresora.TipoDocumento = "RAW";
+
+            IBCA_BI_DataSet1 resultadoGoyo = GetDataImprimir(_ov, "FILTER_GOYO", false, true);
+            IBCA_BI_DataSet1 resultadoRodamientos = GetDataImprimir(_ov, "FILTER_RODAMIENTOS", false, true);
+
+            List<DataTable> lineas = new List<DataTable>();
+            lineas.Add(resultadoGoyo.Tables["BodegaGetOvDetalleTirillaDataTable"]);
+            lineas.Add(resultadoRodamientos.Tables["BodegaGetOvDetalleTirillaDataTable"]);
+
+            DataRow roGoyo = resultadoGoyo.Tables["BodegaGetOvDetalleTirillaDataTable"].AsEnumerable().FirstOrDefault();
+            DataRow roRoda = resultadoRodamientos.Tables["BodegaGetOvDetalleTirillaDataTable"].AsEnumerable().FirstOrDefault();
+
+            try
+            {
+                //PARA PRUEBAS
+                CadenaCabeceraE = "Fecha Cliente " + roGoyo[5].ToString() == "" ? roRoda[5].ToString() : roGoyo[5].ToString();
+
+                if (resultadoGoyo.Tables["BodegaGetOvDetalleTirillaDataTable"].Rows.Count > 0 ||
+                    resultadoRodamientos.Tables["BodegaGetOvDetalleTirillaDataTable"].Rows.Count > 0)
+                {
+
+                    CadenaCabeceraA = "Orden " + resultadoGoyo.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[0].ToString();
+                    CadenaCabeceraB = "Cliente " + resultadoGoyo.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[1].ToString();
+                    CadenaCabeceraC = "Facturador " + _facturador;
+
+                    CadenaCabeceraD = "";
+                    CadenaCabeceraE = "Fecha Cliente " + roGoyo[5].ToString() == "" ? roRoda[5].ToString() : roGoyo[5].ToString();
+                    CadenaCabeceraF = "";
+
+                    CadenaPie = "Asignado a " + _usuarioAsignado + " - " + resultadoGoyo.Tables["BodegaGetOvCabeceraDataTable"].Rows[0].ItemArray[2].ToString() + " ";
+
+                    //a.ImprimirFormatoBodegaOvLineas(confInmpresora, new List<String> { CadenaCabeceraA, CadenaCabeceraB }, resultado.Tables["BodegaGetOvDetalleIndividualDataTable"], CadenaPie, false, false);
+
+                    a.ImprimirFormatoBodegaOv(
+                        confInmpresora,
+                        new List<String> { CadenaCabeceraA, CadenaCabeceraB, CadenaCabeceraC, CadenaCabeceraD, CadenaCabeceraE, CadenaCabeceraF },
+                        lineas,
+                        CadenaPie,
+                        false,
+                        false,
+                        false);
+                }
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                throw ex;
+            }
+        }
+
+        protected void Page_Load(object sender, EventArgs e)
+        {
+            ValidarAccesoOpcionByUrl("BodegaDespachoParaReservaB.aspx");
+
+            this.Form.DefaultButton = btnConsultar.UniqueID;
+
+            if (!IsPostBack)
+            {
+                try
+                {
+                    ParametrosCabeceraClass parametros = new ParametrosCabeceraClass();
+
+                    lblMensajeErrorCliente.Visible = false;
+
+                    btnConsultar.Attributes["onclick"] = "javascript:gfProceso()";
+                    btnConfirmacionAceptar.Attributes["onclick"] = "javascript:gfProceso()";
+
+                    GetDatosPersonalPernos();
+
+                    Impresoras = parametros.getParametrosCabeceraById(1, 4).ParametrosDetalle.ToList();
+
+                    ddlImpresoras.DataSourceID = null;
+                    ddlImpresoras.DataSource = Impresoras;
+                    ddlImpresoras.DataBind();
+                }
+                catch (Exception ex)
+                {
+                    general.Log(ex.Message, Generales.TiposError.error);
+                    MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+                }
+            }
+        }
+
+        protected void btnConsultar_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                ValidarSesion();
+
+                lblMensajeErrorCliente.Visible = false;
+
+                RecargarGrid();
+
+                LogConsultaTransaccion log = new LogConsultaTransaccion();
+                log.Usuario = Session["Usuario"].ToString();
+                log.Fecha = DateTime.Now;
+                log.Detalles = "Parámetros de consulta. Fecha consulta: " + txtFechaInicio.Text;
+                log.Formulario = "BodegaDespachoParaReservaB.aspx";
+
+                LogConsultaTransaccionEntity saveLog = new LogConsultaTransaccionEntity();
+                saveLog.save(log);
+            }
+            catch (Exception ex)
+            {
+                lblMensajeErrorCliente.Visible = true;
+                lblMensajeErrorCliente.Text = "Ha surgido un error. Favor intente nuevamente.";
+                general.Log(ex.Message, Generales.TiposError.error);
+                MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+            }
+            finally
+            {
+                String script = "gfProceso();";
+
+                ScriptManager.RegisterStartupScript(this, typeof(Page), "popup", script, true);
+            }
+        }
+
+        protected void dgParaReserva_RowCommand(object sender, GridViewCommandEventArgs e)
+        {
+            
+        }
+
+        protected void dgParaReserva_PageIndexChanging(object sender, GridViewPageEventArgs e)
+        {
+            dgParaReserva.PageIndex = e.NewPageIndex;
+            RecargarGrid();
+        }
+
+        protected void btnConfirmacionAceptar_Click(object sender, EventArgs e)
+        {
+            ValidarSesion();
+
+            int RefId;
+
+            try
+            {
+                LogConsultaTransaccion logInicial = new LogConsultaTransaccion();
+                logInicial.Usuario = Session["Usuario"].ToString();
+                logInicial.Fecha = DateTime.Now;
+                logInicial.Detalles = "Inicio. Parámetros de Impresión. OV: " + OrdenVenta + " User: " + UsuarioAsignado;
+                logInicial.Formulario = "BodegaDespachoParaReservaB.aspx";
+                logInicial.RefId = null;
+
+                LogConsultaTransaccionEntity saveLogInicial = new LogConsultaTransaccionEntity();
+                RefId = saveLogInicial.save(logInicial).Id;
+
+                String conString = ConfigurationManager.ConnectionStrings["IBCA_BIConnectionString"].ConnectionString;
+                String respuesta = "";
+                object result = new object();
+
+                try
+                {
+                    btnConfirmacionAceptar.Enabled = false;
+
+                    using (SqlConnection con = new SqlConnection(conString))
+                    {
+                        using (SqlCommand cmd = new SqlCommand("sp_ibca_bodega_ovpickinguser", con))
+                        {
+                            cmd.CommandType = CommandType.StoredProcedure;
+
+                            cmd.Parameters.Add("@ov", SqlDbType.VarChar).Value = OrdenVenta;
+                            cmd.Parameters.Add("@usuario", SqlDbType.VarChar).Value = UsuarioAsignado;
+
+                            con.Open();
+
+                            result = cmd.ExecuteNonQuery();
+
+                            respuesta = "Usuario " + UsuarioAsignado + " asignado a la orden " + OrdenVenta + ". ";
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    respuesta = "Error al asignar Usuario: " + ex.InnerException.ToString();
+                }
+
+                if (result != null)
+                {
+                    try
+                    {
+                        ImprimirAsignacion(OrdenVenta, UsuarioAsignado, Facturador);
+                    }
+                    catch (Exception ex)
+                    {
+                        respuesta += " Error al imprimir: " + ex.Message;
+                    }
+
+                    MuestraMensaje(respuesta);
+
+                    RecargarGrid();
+                }
+                else
+                {
+                    MuestraMensaje("No se pudo registrar en Base de Datos. Comuníquese con el administrador.");
+
+                    RecargarGrid();
+                }
+
+                btnConfirmacionAceptar.Enabled = true;
+
+                LogConsultaTransaccion log = new LogConsultaTransaccion();
+                log.Usuario = Session["Usuario"].ToString();
+                log.Fecha = DateTime.Now;
+                log.Detalles = "Fin. Parámetros de Impresión. OV: " + OrdenVenta + " User: " + UsuarioAsignado;
+                log.Formulario = "BodegaDespachoParaReservaB.aspx";
+                log.RefId = RefId;
+
+                LogConsultaTransaccionEntity saveLog = new LogConsultaTransaccionEntity();
+                saveLog.save(log);
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+            }
+            finally
+            {
+                String script = "gfProceso();";
+
+                ScriptManager.RegisterStartupScript(this, typeof(Page), "popup", script, true);
+            }
+        }
+
+        protected void dgParaReserva_RowDataBound(object sender, GridViewRowEventArgs e)
+        {
+            try
+            {
+                if (e.Row.RowType == DataControlRowType.DataRow)
+                {
+                    DropDownList ddlUsuarioAsignado;
+
+                    ddlUsuarioAsignado = (DropDownList)e.Row.FindControl("ddlUsuarioAsignado");
+
+                    ListItem item0 = new ListItem();
+                    item0.Text = "";
+                    item0.Value = "0";
+
+                    ListItemCollection collection = new ListItemCollection();
+                    collection.Add(item0);
+
+                    foreach (DataRow item in PersonalBodega.Tables["BodegaPersonalPernosDataTable"].Rows)
+                    {
+                        ListItem i = new ListItem();
+                        i.Text = item.ItemArray[0].ToString();
+                        i.Value = item.ItemArray[0].ToString();
+
+                        collection.Add(i);
+                    }
+
+                    ddlUsuarioAsignado.DataSourceID = null;
+                    ddlUsuarioAsignado.DataSource = collection;
+                    ddlUsuarioAsignado.DataBind();
+
+                    fn_ibca_reporteweb_bodega_ordenventa_parareserva_Result rowView = (fn_ibca_reporteweb_bodega_ordenventa_parareserva_Result)e.Row.DataItem;
+
+                    String value = rowView.usuario;
+
+                    ddlUsuarioAsignado.SelectedValue = value;
+
+                    ImageButton btnReimprimirTirillaPernos = (ImageButton)e.Row.FindControl("btnReimprimirTirillaPernos");
+                    btnReimprimirTirillaPernos.Attributes["onclick"] = "javascript:gfProceso()";
+
+                    ImageButton btnReimprimirTirillaOtros = (ImageButton)e.Row.FindControl("btnReimprimirTirillaOtros");
+                    btnReimprimirTirillaOtros.Attributes["onclick"] = "javascript:gfProceso()";
+                }
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+            }
+        }
+
+        protected void ddlUsuarioAsignado_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                DropDownList ddlUsuarioAsignado = (DropDownList)sender;
+                GridViewRow row = (GridViewRow)ddlUsuarioAsignado.Parent.Parent;
+
+                if (ddlUsuarioAsignado.SelectedValue != "")
+                {
+                    OrdenVenta = dgParaReserva.DataKeys[row.RowIndex].Value.ToString();
+                    UsuarioAsignado = ddlUsuarioAsignado.SelectedItem.Text;
+                    Facturador = dgParaReserva.Rows[row.RowIndex].Cells[2].Text;
+
+                    lblConfirmacion.Text = "¿Está seguro que desea asignar la orden " + OrdenVenta + " al usuario " + UsuarioAsignado + "?";
+
+                    mpeConfirmacion.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                general.Log(ex.Message, Generales.TiposError.error);
+                MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+            }
+        }
+
+        protected void btnReimprimirTirillaPernos_Click(object sender, EventArgs e)
+        {
+            ValidarSesion();
+
+            Boolean controlaError = false;
+
+            try
+            {
+                ImageButton imgSuspendido = (ImageButton)sender;
+                GridViewRow row = (GridViewRow)imgSuspendido.Parent.Parent;
+
+                OrdenVenta = dgParaReserva.DataKeys[row.RowIndex].Value.ToString();
+
+                DropDownList ddlusuario = (DropDownList)dgParaReserva.Rows[row.RowIndex].FindControl("ddlUsuarioAsignado");
+                string _UsuarioAsignado = ddlusuario.SelectedValue;
+
+                string Facturador = dgParaReserva.Rows[row.RowIndex].Cells[2].Text;
+
+                if (_UsuarioAsignado.Equals(""))
+                {
+                    MuestraMensaje("Asigne un usuario a la orden de venta para poder reimprimir");
+                }
+                else
+                {
+                    int RefId;
+
+                    LogConsultaTransaccion logInicial = new LogConsultaTransaccion();
+                    logInicial.Usuario = Session["Usuario"].ToString();
+                    logInicial.Fecha = DateTime.Now;
+                    logInicial.Detalles = "Inicio. Parámetros de Reimpresión Tirilla. OV: " + OrdenVenta + " User: " + UsuarioAsignado;
+                    logInicial.Formulario = "BodegaCortesParaReservaB.aspx";
+                    logInicial.RefId = null;
+
+                    LogConsultaTransaccionEntity saveLogInicial = new LogConsultaTransaccionEntity();
+                    RefId = saveLogInicial.save(logInicial).Id;
+
+                    ImprimirTirillaPernos(OrdenVenta, _UsuarioAsignado, Facturador);
+
+                    LogConsultaTransaccion log = new LogConsultaTransaccion();
+                    log.Usuario = Session["Usuario"].ToString();
+                    log.Fecha = DateTime.Now;
+                    log.Detalles = "Fin. Parámetros de Reimpresión Tirilla. OV: " + OrdenVenta + " User: " + UsuarioAsignado;
+                    log.Formulario = "BodegaCortesParaReservaB.aspx";
+                    log.RefId = RefId;
+
+                    LogConsultaTransaccionEntity saveLog = new LogConsultaTransaccionEntity();
+                    saveLog.save(log);
+                }
+            }
+            catch (Exception ex)
+            {
+                controlaError = true;
+                general.Log(ex.Message, Generales.TiposError.error);
+            }
+            finally
+            {
+                //RecargarGrid();
+
+                String script = "gfProceso();";
+
+                ScriptManager.RegisterStartupScript(this, typeof(Page), "popup", script, true);
+
+                if (controlaError)
+                {
+                    MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+                }
+            }
+        }
+
+        protected void btnReimprimirTirillaOtros_Click(object sender, EventArgs e)
+        {
+            ValidarSesion();
+
+            Boolean controlaError = false;
+
+            try
+            {
+                ImageButton imgSuspendido = (ImageButton)sender;
+                GridViewRow row = (GridViewRow)imgSuspendido.Parent.Parent;
+
+                OrdenVenta = dgParaReserva.DataKeys[row.RowIndex].Value.ToString();
+
+                DropDownList ddlusuario = (DropDownList)dgParaReserva.Rows[row.RowIndex].FindControl("ddlUsuarioAsignado");
+                string _UsuarioAsignado = ddlusuario.SelectedValue;
+
+                string Facturador = dgParaReserva.Rows[row.RowIndex].Cells[2].Text;
+
+                if (_UsuarioAsignado.Equals(""))
+                {
+                    MuestraMensaje("Asigne un usuario a la orden de venta para poder reimprimir");
+                }
+                else
+                {
+                    int RefId;
+
+                    LogConsultaTransaccion logInicial = new LogConsultaTransaccion();
+                    logInicial.Usuario = Session["Usuario"].ToString();
+                    logInicial.Fecha = DateTime.Now;
+                    logInicial.Detalles = "Inicio. Parámetros de Reimpresión Otros. OV: " + OrdenVenta + " User: " + UsuarioAsignado;
+                    logInicial.Formulario = "BodegaCortesParaReservaB.aspx";
+                    logInicial.RefId = null;
+
+                    LogConsultaTransaccionEntity saveLogInicial = new LogConsultaTransaccionEntity();
+                    RefId = saveLogInicial.save(logInicial).Id;
+
+                    ImprimirTirillaOtros(OrdenVenta, _UsuarioAsignado, Facturador);
+
+                    LogConsultaTransaccion log = new LogConsultaTransaccion();
+                    log.Usuario = Session["Usuario"].ToString();
+                    log.Fecha = DateTime.Now;
+                    log.Detalles = "Fin. Parámetros de Reimpresión Otros. OV: " + OrdenVenta + " User: " + UsuarioAsignado;
+                    log.Formulario = "BodegaCortesParaReservaB.aspx";
+                    log.RefId = RefId;
+
+                    LogConsultaTransaccionEntity saveLog = new LogConsultaTransaccionEntity();
+                    saveLog.save(log);
+                }
+            }
+            catch (Exception ex)
+            {
+                controlaError = true;
+                general.Log(ex.Message, Generales.TiposError.error);
+            }
+            finally
+            {
+                //RecargarGrid();
+
+                String script = "gfProceso();";
+
+                ScriptManager.RegisterStartupScript(this, typeof(Page), "popup", script, true);
+
+                if (controlaError)
+                {
+                    MuestraMensaje("Se ha presentado un error, actualice la pantalla e intente nuevamente.");
+                }
+            }
+        }
+    }
+}
