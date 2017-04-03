@@ -1,0 +1,270 @@
+<%@ Page Title="" Language="C#" MasterPageFile="~/IBCA.Master" AutoEventWireup="true" CodeBehind="BodegaDespachoParaReservaB.aspx.cs" Inherits="IBCA.Forms.BodegaDespachoParaReservaB" %>
+
+<%@ Register Assembly="AjaxControlToolkit" Namespace="AjaxControlToolkit" TagPrefix="aspx" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="head" runat="server">
+</asp:Content>
+<asp:Content ID="Content2" ContentPlaceHolderID="ContentPlaceHolder1" runat="server">
+
+    <script type="text/javascript">
+
+    </script>
+
+    <div>
+        <table width="100%" border="0" cellspacing="5" cellpadding="5">
+            <tr>
+                <td width="8%">
+                    <center>
+                        <span class="letra_cabecera_azul_opciones">
+                            <b>
+                                <asp:Label ID="lblTitulo" runat="server" Text="Bodega Despacho Para Reserva"></asp:Label>
+                            </b>
+                        </span>
+                    </center>
+                </td>
+                <td width="92%">
+                    <div class="separador_titulo_sombra">
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <br />
+
+    <table style="width: 100%">
+        <thead>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="width: 15%; text-align: right;"></td>
+                <td style="width: 10%; text-align: right;">
+                    <asp:Label runat="server" ID="lblImpresora" Text="Impresora:" CssClass="letra"></asp:Label>
+                </td>
+                <td style="width: 15%; text-align: left;">
+                    <asp:DropDownList DataSourceID="odsImpresoras" ID="ddlImpresoras" AutoPostBack="false"
+                        Width="100%" CssClass="letra" runat="server" DataTextField="Valor" DataValueField="Id">
+                    </asp:DropDownList>
+                    <asp:ObjectDataSource ID="odsImpresoras" runat="server" SelectMethod="CreateCollection"
+                        TypeName="List<ParametrosDetalle>"></asp:ObjectDataSource>
+                </td>
+                <td style="width: 5%;"></td>
+                <td style="width: 15%; text-align: left;"></td>
+                <td style="width: 5%;"></td>
+                <td style="width: 15%; text-align: left;"></td>
+                <td style="width: 5%;"></td>
+                <td style="width: 15%;"></td>
+            </tr>
+            <tr>
+                <td style="width: 15%; text-align: right;"></td>
+                <td style="width: 10%; text-align: right;">
+                    <asp:Label runat="server" ID="lblFechaInicio" Text="Fecha Consulta:" CssClass="letra"></asp:Label>
+                </td>
+                <td style="width: 15%; text-align: left;">
+                    <asp:TextBox runat="server" ID="txtFechaInicio" Width="100%" ValidationGroup="vgParametrosReporte"></asp:TextBox>
+                    <aspx:CalendarExtender
+                        ID="ceFechaInicio"
+                        TargetControlID="txtFechaInicio"
+                        runat="server" Format="dd/MM/yyyy" />
+                </td>
+                <td style="width: 5%;">
+                    <asp:RequiredFieldValidator ID="rfvFechaInicio" runat="server" ControlToValidate="txtFechaInicio"
+                        ErrorMessage="Debe seleccionar una fecha de consulta"
+                        ForeColor="Red">*</asp:RequiredFieldValidator>
+                    <aspx:ValidatorCalloutExtender ID="vceFechaInicio" runat="server" TargetControlID="rfvFechaInicio"
+                        HighlightCssClass="validatorCalloutHighlight">
+                    </aspx:ValidatorCalloutExtender>
+                </td>
+                <td style="width: 15%; text-align: left;">
+                    <asp:Button ID="btnConsultar" runat="server" Text="Consultar" Width="100%"
+                        CssClass="EstiloBotones" Visible="true" OnClick="btnConsultar_Click"
+                        ValidationGroup="vgParametrosReporte" />
+                </td>
+                <td style="width: 5%;"></td>
+                <td style="width: 15%; text-align: left;"></td>
+                <td style="width: 5%;"></td>
+                <td style="width: 15%;"></td>
+            </tr>
+            <tr>
+                <td style="width: 15%;"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <table style="width: 100%;">
+        <tbody>
+            <tr>
+                <td>
+                    <asp:Label ID="lblMensajeErrorCliente" runat="server" Text="Mensaje de Error" ForeColor="Red" Visible="false"></asp:Label>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div>
+        <table style="width: 100%">
+            <tr>
+                <td style="width: 85%">
+                    <table style="width: 100%;">
+                        <tr>
+                            <td style="width: 5%;"></td>
+                            <td style="width: 90%;">
+                                <asp:Panel ID="pnl_ParaReserva" runat="server" Width="100%" Height="70%">
+                                    <div style="width: 100%; height: auto; overflow: scroll">
+                                        <asp:GridView ID="dgParaReserva" runat="server" Width="100%"
+                                            CellPadding="4" BackColor="White" BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" PageSize="8"
+                                            HorizontalAlign="Center" Font-Size="11px" OnRowCommand="dgParaReserva_RowCommand" DataKeyNames="SALESID"
+                                            OnRowDataBound="dgParaReserva_RowDataBound" AutoGenerateColumns="False" AllowPaging="true"
+                                            OnPageIndexChanging="dgParaReserva_PageIndexChanging">
+                                            <Columns>
+                                                <asp:BoundField DataField="SALESID" HeaderText="Orden de Venta" SortExpression="SALESID">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" />
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" HorizontalAlign="Center" VerticalAlign="Middle"
+                                                        BorderWidth="1px" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:BoundField DataField="SALESNAME" HeaderText="Nombre de Venta" SortExpression="SALESNAME">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" />
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" HorizontalAlign="Center" VerticalAlign="Middle"
+                                                        BorderWidth="1px" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:BoundField DataField="Facturador" HeaderText="Facturador" SortExpression="Facturador">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" />
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" HorizontalAlign="Center" VerticalAlign="Middle"
+                                                        BorderWidth="1px" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:BoundField DataField="registro" DataFormatString="{0:G}" HeaderStyle-BorderColor="#cccccc"
+                                                    HeaderStyle-BorderStyle="Solid" HeaderStyle-BorderWidth="1px" HeaderText="Fecha Registro"
+                                                    ReadOnly="True" SortExpression="Registro">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderWidth="1px" BorderStyle="Solid" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle"></HeaderStyle>
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:BoundField DataField="fechaorden" DataFormatString="{0:G}" HeaderStyle-BorderColor="#cccccc"
+                                                    HeaderStyle-BorderStyle="Solid" HeaderStyle-BorderWidth="1px" HeaderText="Fecha Orden"
+                                                    ReadOnly="True" SortExpression="fechaorden">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderWidth="1px" BorderStyle="Solid" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle"></HeaderStyle>
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:BoundField DataField="ordenventa" DataFormatString="{0:G}" HeaderStyle-BorderColor="#cccccc"
+                                                    HeaderStyle-BorderStyle="Solid" HeaderStyle-BorderWidth="1px" HeaderText="Orden Venta"
+                                                    ReadOnly="True" SortExpression="fechaorden">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderWidth="1px" BorderStyle="Solid" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle"></HeaderStyle>
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:BoundField DataField="confirmacion" DataFormatString="{0:G}" HeaderStyle-BorderColor="#cccccc"
+                                                    HeaderStyle-BorderStyle="Solid" HeaderStyle-BorderWidth="1px" HeaderText="Fecha Confirmación"
+                                                    ReadOnly="True" SortExpression="confirmacion">
+                                                    <HeaderStyle BorderColor="#CCCCCC" BorderWidth="1px" BorderStyle="Solid" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle"></HeaderStyle>
+                                                    <ItemStyle BorderColor="#CCCCCC" BorderStyle="Solid" BorderWidth="1px" HorizontalAlign="Center"
+                                                        VerticalAlign="Middle" Width="10%" />
+                                                </asp:BoundField>
+
+                                                <asp:TemplateField HeaderText="Usuario" ItemStyle-Width="15%">
+                                                    <ItemTemplate>
+                                                        <asp:DropDownList ID="ddlUsuarioAsignado" runat="server" Width="100%"
+                                                            AutoPostBack="true" OnSelectedIndexChanged="ddlUsuarioAsignado_SelectedIndexChanged">
+                                                        </asp:DropDownList>
+                                                    </ItemTemplate>
+                                                </asp:TemplateField>
+
+                                                <asp:TemplateField HeaderText="Tirilla Pernos" ItemStyle-HorizontalAlign="Center" ItemStyle-Width="5%">
+                                                    <ItemTemplate>
+                                                        <asp:ImageButton ID="btnReimprimirTirillaPernos" runat="server"
+                                                            ImageUrl="~/Public/images/Iconos/Modificar.png"
+                                                            OnClick="btnReimprimirTirillaPernos_Click" />
+                                                    </ItemTemplate>
+                                                </asp:TemplateField>
+
+                                                <asp:TemplateField HeaderText="Tirilla Otros" ItemStyle-HorizontalAlign="Center" ItemStyle-Width="5%">
+                                                    <ItemTemplate>
+                                                        <asp:ImageButton ID="btnReimprimirTirillaOtros" runat="server"
+                                                            ImageUrl="~/Public/images/Iconos/Modificar.png"
+                                                            OnClick="btnReimprimirTirillaOtros_Click" />
+                                                    </ItemTemplate>
+                                                </asp:TemplateField>
+                                            </Columns>
+                                            <FooterStyle CssClass="letra" BackColor="#f9f9f9" ForeColor="#003399" />
+                                            <HeaderStyle CssClass="MyGradientStyle" />
+                                            <PagerSettings FirstPageText="Primero" LastPageText="Último" Mode="NumericFirstLast" />
+                                            <PagerStyle CssClass="letra" BackColor="#cccccc" ForeColor="#003399" HorizontalAlign="Left" />
+                                            <RowStyle CssClass="EstiloCuerpoGrid" />
+                                            <SelectedRowStyle BackColor="LightGray" Font-Bold="True" ForeColor="#3b5998" />
+                                            <SortedAscendingCellStyle BackColor="#cccccc" />
+                                            <SortedAscendingHeaderStyle CssClass="MyGradientStyle" />
+                                            <SortedDescendingCellStyle CssClass="EstiloCuerpoGrid" />
+                                            <SortedDescendingHeaderStyle CssClass="MyGradientStyle" />
+                                        </asp:GridView>
+                                    </div>
+                                </asp:Panel>
+                            </td>
+                            <td style="width: 5%;"></td>
+                        </tr>
+                    </table>
+                    <%--<asp:ObjectDataSource ID="odsParaReserva" runat="server" SelectMethod="CreateCollection"
+                        TypeName="List<Usuarios>"></asp:ObjectDataSource>--%>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <%--================================ Inicio PopUp Confirmación=============================================--%>
+    <asp:Panel ID="pnlConfirmacion" runat="server" CssClass="modalPopup" Width="200px">
+
+        <asp:Panel ID="pnlConfirma" runat="server" Style="cursor: move">
+            <div>
+                <p class="accordionHeaderSelected">
+                    Confirmación
+                </p>
+            </div>
+        </asp:Panel>
+        <div>
+            <table align="center">
+                <tr>
+                    <td align="center">
+                        <asp:Image ID="Image1" runat="server" ImageUrl="~/Public/images/mensajes/alerta.png" />
+                    </td>
+                    <td align="center" colspan="2">
+                        <asp:Label ID="lblConfirmacion" runat="server" Text="" CssClass="letra"></asp:Label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>&nbsp;
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <table align="center">
+            <tr>
+                <td>
+                    <asp:Button ID="btnConfirmacionAceptar" runat="server" Height="25px" Width="60px"
+                        Text="Aceptar" CssClass="EstiloBotones" OnClick="btnConfirmacionAceptar_Click" />
+                    <asp:Button ID="btnConfirmacionSalir" runat="server" Height="25px" Width="60px" Text="Salir"
+                        CssClass="EstiloBotones" />
+                </td>
+            </tr>
+        </table>
+    </asp:Panel>
+    <aspx:ModalPopupExtender ID="mpeConfirmacion" TargetControlID="btnTargetConfirmacion"
+        runat="server" PopupControlID="pnlConfirmacion" BackgroundCssClass="modalBackground"
+        DropShadow="true" PopupDragHandleControlID="pnlConfirma" />
+    <div style="display: none">
+        <asp:Button ID="btnTargetConfirmacion" runat="server" Text="TargetConfirmacion" />
+    </div>
+    <%--================================Inicio PopUp Confirmación=============================================--%>
+</asp:Content>
